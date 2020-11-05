@@ -14,7 +14,7 @@
 
 * [About the Project](#about-the-project)
 * [Getting Started](#getting-started)
-  * [Installation](#installation)
+	* [Installation](#installation)
 	* [Model Training](#model-training)
 	* [Model Analysis](#model-analysis)	
 * [Contact](#contact)
