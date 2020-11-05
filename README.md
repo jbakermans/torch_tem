@@ -7,14 +7,16 @@
 [![LinkedIn][linkedin-shield]][linkedin-url]
 -->
 
+# Torch TEM
+
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
 
 * [About the Project](#about-the-project)
 * [Getting Started](#getting-started)
   * [Installation](#installation)
-	* [Model Training](#installation)
-	* [Model Analysis](#installation)	
+	* [Model Training](#model-training)
+	* [Model Analysis](#model-analysis)	
 * [Contact](#contact)
 * [Acknowledgements](#acknowledgements)
 
