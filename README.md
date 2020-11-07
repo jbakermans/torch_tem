@@ -59,7 +59,7 @@ You will need to specify the correct model run in ```test.py```.
 <!-- CONTACT -->
 ## Contact
 
-Jacob Bakermans - jacob.bakermans [at] gmail.com
+[http://users.ox.ac.uk/~phys1358/](Jacob Bakermans) - jacob.bakermans [at] gmail.com
 
 Project Link: [https://github.com/jbakermans/torch_tem](https://github.com/jbakermans/torch_tem)
 
