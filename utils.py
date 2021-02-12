@@ -21,9 +21,9 @@ def inv_var_weight(mus, sigmas):
     mus = torch.stack(mus, dim = 0)
     sigmas = torch.stack(sigmas, dim = 0)
     # Calculate inverse variance weighted variance from sum over reciprocal of squared sigmas
-    inv_var_var = torch.sum(1.0 / (sigmas**2), dim = 0)
+    inv_var_var = 1.0 / torch.sum(1.0 / (sigmas**2), dim = 0)
     # Calculate inverse variance weighted average
-    inv_var_avg = torch.sum(mus / (sigmas**2), dim = 0) / inv_var_var
+    inv_var_avg = torch.sum(mus / (sigmas**2), dim = 0) * inv_var_var
     # Convert weigthed variance to sigma
     inv_var_sigma = torch.sqrt(inv_var_var)
     # And return results
