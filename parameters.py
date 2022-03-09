@@ -19,7 +19,7 @@ def parameters():
     # Number of available actions, excluding the stand still action (since standing still has an action vector full of zeros, it won't add to the action vector dimension)
     params['n_actions'] = 4
     # Bias for explorative behaviour to pick the same action again, to encourage straight walks
-    params['explore_bias'] = 0
+    params['explore_bias'] = 2
     # Rate at which environments with shiny objects occur between training environments. Set to 0 for no shiny environments at all
     params['shiny_rate'] = 0
     # Discount factor in calculating Q-values to generate shiny object oriented behaviour
@@ -33,13 +33,13 @@ def parameters():
     # Group all shiny parameters together to pass them to the world object
     params['shiny'] = {'gamma' : params['shiny_gamma'], 'beta' : params['shiny_beta'], 'n' : params['shiny_n'], 'returns' : params['shiny_returns']}
       
-    # -- Traning parameters
+    # -- Training parameters
     # Number of walks to generate
     params['train_it'] = 20000
     # Number of steps to roll out before backpropagation through time
     params['n_rollout'] = 20
     # Batch size: number of walks for training simultaneously
-    params['batch_size'] = 16    
+    params['batch_size'] = 16
     # Minimum length of a walk on one environment. Walk lengths are sampled uniformly from a window that shifts down until its lower limit is walk_it_min at the end of training
     params['walk_it_min'] = 25
     # Maximum length of a walk on one environment. Walk lengths are sampled uniformly from a window that starts with its upper limit at walk_it_max in the beginning of training, then shifts down
