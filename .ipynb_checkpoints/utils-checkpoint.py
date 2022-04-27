@@ -12,6 +12,7 @@ import os
 import datetime
 import logging
 
+
 def inv_var_weight(mus, sigmas):
     '''
     Accepts lists batches of row vectors of means and standard deviations, with batches along dim 0
@@ -168,3 +169,4 @@ def make_logger(run_path):
     logger.addHandler(handler)
     # Return the logger object
     return logger
+

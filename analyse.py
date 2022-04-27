@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import pdb
 import copy
+from itertools import permutations
 
 # Track prediction accuracy over walk, and calculate fraction of locations visited and actions taken to assess performance
 def performance(forward, model, environments):
@@ -21,6 +22,7 @@ def performance(forward, model, environments):
         # And for each action in each location whether it has been taken
         action_taken = np.full((env.n_locations,model.hyper['n_actions']), False)
         # Not all actions are available at every location (e.g. edges of grid world). Find how many actions can be taken
+        # Impossible actions should be all 0s
         action_available = np.full((env.n_locations,model.hyper['n_actions']), False)
         for currLocation in env.locations:
             for currAction in currLocation['actions']:
@@ -160,7 +162,7 @@ def compare_to_agents(forward, model, environments, include_stay_still=True):
         for step in forward[1:]:
             # Get the previous action and previous location location
             prev_a, prev_g = prev_iter.a[env_i], prev_iter.g[env_i]['id']
-            # If the previous action was standing still: only count as valid transition standing still actions are included as zero-shot inference
+            # If the previous action was standing still: only count as valid transition if standing still actions are included as zero-shot inference
             if model.hyper['has_static_action'] and prev_a == 0 and not include_stay_still:
                 prev_a = None
             # Mark the location of the previous iteration as visited
@@ -185,6 +187,8 @@ def compare_to_agents(forward, model, environments, include_stay_still=True):
 
 # Calculate rate maps for this model: what is the firing pattern for each cell at all locations?
 def rate_map(forward, model, environments):
+    #print(type(forward))
+    #print(forward)
     # Store location x cell firing rate matrix for abstract and grounded location representation across environments    
     all_g, all_p = [], []
     # Go through environments and collect firing rates in each
@@ -197,20 +201,123 @@ def rate_map(forward, model, environments):
         for step in forward:
             # Run through frequency modules and append the firing rates to the correct location list
             for f in range(model.hyper['n_f']):
+                #print('step.g_inf: {0}'.format(step.g_inf[f][env_i].numpy()))
+                #print('step.p_inf: {0}'.format(step.p_inf[f][env_i].numpy()))
                 g[f][step.g[env_i]['id']].append(step.g_inf[f][env_i].numpy())
                 p[f][step.g[env_i]['id']].append(step.p_inf[f][env_i].numpy())
-        # Now average across location visits to get a single represenation vector for each location for each frequency
+        # Now average across location visits to get a single representation vector for each location for each frequency
         for cells, n_cells in zip([p, g], [model.hyper['n_p'], model.hyper['n_g']]):
+            #print('len(cells): {0}'.format(len(cells)))
             for f, frequency in enumerate(cells):
+                #print('len(frequency): {0}'.format(len(frequency)))
                 # Average across visits of the each location, but only the second half of the visits so model roughly know the environment
                 for l, location in enumerate(frequency):
+                    #print('len(location): {0}'.format(len(location)))
                     frequency[l] = sum(location[int(len(location)/2):]) / len(location[int(len(location)/2):]) if len(location[int(len(location)/2):]) > 0 else np.zeros(n_cells[f])
                 # Then concatenate the locations to get a [locations x cells for this frequency] matrix
                 cells[f] = np.stack(frequency, axis=0)
+                #print('len(cells[f]): {0}'.format(len(cells[f])))
         # Append the final average representations of this environment to the list of representations across environments
         all_g.append(g)
         all_p.append(p)
+    #print('{0}'.format(len(all_p))) 4 environments
+    #print('{0}'.format(len(all_p[0]))) 5 frequencies
+    #print('{0}'.format(len(all_p[0][0]))) 29 locations
+    #print('{0}'.format(len(all_p[0][0][0]))) 100 cells
+    #print('{0}'.format(len(all_p[0][0][0][0]))) int
     # Return list of locations x cells matrix of firing rates for each frequency module for each environment
+    #print('all_g[0][0][0]: {0}\n'.format(all_g[0][0][0]))
+    #print('all_p: {0}]\n'.format(all_p))
+    return all_g, all_p
+
+def trajectory_len(trajectory):
+    return abs(trajectory[1] - trajectory[0]) * 2 + 6
+
+# Calculate rate maps for this model: what is the firing pattern for each cell at all locations?
+def trajectories_rate_maps(forward, model, environments, trajectories=list(permutations(np.arange(6), r=2))):
+    #print(type(forward))
+    #print(forward)
+    # Make dictionary to easily convert from trajectory tuple to idx in trajectories list
+    trajectory_dict = {}
+    for traj_idx, traj in enumerate(trajectories):
+        trajectory_dict[traj] = traj_idx
+    # Make an array where every element is the current trajectory for step_i in the test walk
+    trajectory_labels = np.ones(shape=(len(environments), len(forward))) * -1
+    arm_visit_times = [[] for env in environments]
+    for env_i, env in enumerate(environments):
+        for step_i, step in enumerate(forward):
+            if not step.g[env_i]['id'] % 5:
+                arm_visit_times[env_i].append((step_i, int(step.g[env_i]['id'] / 5)))
+        #print(arm_visit_times[env_i])
+        for visit_idx in np.arange(len(arm_visit_times[env_i][:-1])):
+            arm_visit_1, arm_visit_2 = arm_visit_times[env_i][visit_idx], arm_visit_times[env_i][visit_idx+1]
+            # +1 is so that we count reward visits as being at the end of trajectories
+            #print([trajectory_dict[(arm_visit_1[1], arm_visit_2[1])]])
+            trajectory_labels[env_i][arm_visit_1[0]+1:arm_visit_2[0]+1] = [trajectory_dict[(arm_visit_1[1], arm_visit_2[1])]] * (arm_visit_2[0] - arm_visit_1[0])
+    # Store location x cell firing rate matrix for abstract and grounded location representation across environments
+    all_g, all_p = [], []
+    # Go through environments and collect firing rates in each
+    for env_i, env in enumerate(environments):
+        # Collect grounded location/hippocampal/place cell representation during walk: separate into frequency modules, then locations
+        p = [[[[] for loc in range(env.n_locations)] for trajectory_i in range(len(trajectories))] for f in range(model.hyper['n_f'])]
+        # Collect abstract location/entorhinal/grid cell representation during walk: separate into frequency modules, then locations
+        g = [[[[] for loc in range(env.n_locations)] for trajectory_i in range(len(trajectories))] for f in range(model.hyper['n_f'])]
+        #print(len(g))
+        #print(len(g[0]))
+        #print(len(g[0][0]))
+        #print(len(g[0][0][0]))
+        #print('g[0][1][1]: {0}'.format(g[0][1][1]))
+        #print(g)
+        #print(trajectory_labels)
+        for trajectory_i, trajectory in enumerate(trajectories):
+
+            # In each step, concatenate the representations to the appropriate list
+            for step_i, step in enumerate(forward[1:]):
+                # Skip first location since it doesn't technically have a trajectory
+                # assigned to it. But make sure that step number is corrected for this
+                step_i = step_i + 1
+                # Run through frequency modules and append the firing rates to the correct location list
+                for f in range(model.hyper['n_f']):
+                    #print('step.g_inf: {0}'.format(step.g_inf[f][env_i].numpy()))
+                    #print('step.p_inf: {0}'.format(step.p_inf[f][env_i].numpy()))
+                    # If the step is on this particular trajectory
+                    # trajectory_labels is of len(forward). Each item is the trajectory the animal was on at
+                    # during step_i
+                    if trajectory_labels[env_i][step_i] == trajectory_i:
+                        print('trajectory: {0}\ntrajectory_i: {1}\nf: {2}\nenv_i: {3}\nstep_i: {4}\ntrajectory_labels[env_i][step_i]: {5}\nlocation: {6}\n'.format(trajectory, trajectory_i, f, env_i, step_i, trajectory_labels[env_i][step_i], step.g[env_i]['id']))
+                        #print(g[f])
+                        #print('g[0][1][1]: {0}'.format(g[0][1][1]))
+                        #print(g[f][trajectory_i])
+                        #print('g[f][trajectory_i][step.g[env_i][\'id\']]: {0}'.format(g[f][trajectory_i][step.g[env_i]['id']]))
+                        g[f][trajectory_i][step.g[env_i]['id']].append(step.g_inf[f][env_i].numpy())
+                        p[f][trajectory_i][step.g[env_i]['id']].append(step.p_inf[f][env_i].numpy())
+                        print(g[f][trajectory_i][step.g[env_i]['id']])
+        # Now average across location visits to get a single representation vector for each location for each frequency
+        for cells, n_cells in zip([p, g], [model.hyper['n_p'], model.hyper['n_g']]):
+            #print('len(cells): {0}'.format(len(cells)))
+            for f, frequency in enumerate(cells):
+                #print('len(frequency): {0}'.format(len(frequency)))
+                # Average across visits of the each location, but only the second half of the visits so model roughly know the environment
+                # Do this separately for each trajectory
+                for trajectory_i, trajectory in enumerate(frequency):
+                    for l, location in enumerate(trajectory):
+                        #print('len(location): {0}'.format(len(location)))
+                        frequency[trajectory_i][l] = sum(location[int(len(location)/2):]) / len(location[int(len(location)/2):]) if (len(location[int(len(location)/2):]) > 0) else np.ones(n_cells[f])
+                    # Then concatenate the locations to get a [locations x trajectories x cells for this frequency] matrix
+                    cells[f][trajectory_i] = np.stack(trajectory, axis=0)
+                #print('len(cells[f]): {0}'.format(len(cells[f])))
+            # Append the final average representations of this environment to the list of representations across environments
+            all_g.append(g)
+            all_p.append(p)
+        #print('{0}'.format(len(all_p))) 4 environments
+        #print('{0}'.format(len(all_p[0]))) 5 frequencies
+        #print('{0}'.format(len(all_p[0][0]))) 30 trajectories
+        #print('{0}'.format(len(all_p[0][0][0]))) variable n locations
+        #print('{0}'.format(len(all_p[0][0][0][0]))) 100 cells
+        #print('{0}'.format(len(all_p[0][0][0][0][0]))) int
+        # Return list of locations x cells matrix of firing rates for each frequency module for each environment
+        #print('all_g[0][0][0]: {0}\n'.format(all_g[0][0][0]))
+        #print('all_p: {0}]\n'.format(all_p))
     return all_g, all_p
 
 # Helper function to generate input for the model

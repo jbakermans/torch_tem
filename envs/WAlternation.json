@@ -1,0 +1,16 @@
+{"n_locations":11,"n_observations":14,"n_actions":5,"adjacency":
+ [[1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]],"locations":
+ 
+ 
+ I have to input the information about latent states, but the sensory observations at identical perceived states will be the same
+ 

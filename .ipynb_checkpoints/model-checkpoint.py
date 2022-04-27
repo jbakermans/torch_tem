@@ -30,6 +30,7 @@ class Model(torch.nn.Module):
         self.init_trainable()
     
     def forward(self, walk, prev_iter = None, prev_M = None):
+        #print('ran forward method')
         # The previous iteration may contain walks without action. These are new walks, for which some parameters need to be reset.
         steps = self.init_walks(prev_iter)
         # Forward pass: perform a TEM iteration for each set of [place, observation, action], and produce inferred and generated variables for each step.
@@ -40,8 +41,12 @@ class Model(torch.nn.Module):
                 steps = [self.init_iteration(g, x, [None for _ in range(len(a))], prev_M)]
             # Perform TEM iteration using transition from previous iteration
             L, M, g_gen, p_gen, x_gen, x_logits, x_inf, g_inf, p_inf = self.iteration(x, g, steps[-1].a, steps[-1].M, steps[-1].x_inf, steps[-1].g_inf)
+            #print('L: {0}'.format(L))
+            #print('g_inf: {0}\n'.format(g_inf))
+            #print('p_inf: {0}\n'.format(p_inf))
             # Store this iteration in iteration object in steps list
             steps.append(Iteration(g, x, a, L, M, g_gen, p_gen, x_gen, x_logits, x_inf, g_inf, p_inf))    
+            
         # The first step is either a step from a previous walk or initialisiation rubbish, so remove it
         steps = steps[1:]
         # Return steps, which is a list of Iteration objects
@@ -58,10 +63,12 @@ class Model(torch.nn.Module):
         M = [self.hebbian(M_prev[0], torch.cat(p_inf,dim=1), torch.cat(p_gen,dim=1))]
         # If using memory for grounded location inference: append inference memory
         if self.hyper['use_p_inf']:
-            # Inference memory is identical to generative memory if using common memory, and updated separatedly if not            
+            # Inference memory is identical to generative memory if using common memory, and updated separately if not            
             M.append(M[0] if self.hyper['common_memory'] else self.hebbian(M_prev[1], torch.cat(p_inf,dim=1), torch.cat(p_inf_x,dim=1), do_hierarchical_connections=False))
         # Calculate loss of this step
         L = self.loss(gt_gen, p_gen, x_logits, x, g_inf, p_inf, p_inf_x, M_prev)
+        # If loop_laps world_type, scale some of the losses by 32 (number of loop_lap states)
+        
         # Return all iteration values
         return L, M, gt_gen, p_gen, x_gen, x_logits, x_inf, g_inf, p_inf
         
@@ -181,7 +188,9 @@ class Model(torch.nn.Module):
         # Initialise previous sensory experience with zeros, as there is no data yet for temporal smoothing
         x_inf = [torch.zeros((self.hyper['batch_size'], self.hyper['n_x_f'][f])) for f in range(self.hyper['n_f'])]        
         # And construct new iteration for that g, x, a, and M
-        return Iteration(g=g, x=x, a=a, M=M, x_inf=x_inf, g_inf=g_inf)    
+        #this_iteration = Iteration(g=g, x=x, a=a, M=M, x_inf=x_inf, g_inf=g_inf)
+        #print('this_iteration: {0}'.format(this_iteration))
+        return Iteration(g=g, x=x, a=a, M=M, x_inf=x_inf, g_inf=g_inf)
     
     def init_walks(self, prev_iter):
         # Only reset parameters for previous iteration if a previous iteration was actually provided - if it wasn't, all parameters will be reset when creating a fresh Iteration object in init_iteration

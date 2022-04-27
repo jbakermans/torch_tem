@@ -81,8 +81,9 @@ def plot_memory(iters, steps = None, do_save = False):
         if do_save:
             fig.savefig('./figs/plot_mem_' + name + '.png')
 
-def plot_map(environment, values, ax=None, min_val=None, max_val=None, num_cols=100, location_cm='viridis', action_cm='Pastel1', do_plot_actions=False, shape='circle', radius=None):
+def plot_map(environment, values, ax=None, min_val=None, max_val=None, num_cols=100, location_cm='viridis', action_cm='Pastel1', do_plot_actions=False, shape='square', radius=None):
     # If min_val and max_val are not specified: take the minimum and maximum of the supplied values
+    #print('values: {0}'.format(values))
     min_val = np.min(values) if min_val is None else min_val
     max_val = np.max(values) if max_val is None else max_val
     # Create color map for locations: colour given by value input
@@ -91,17 +92,54 @@ def plot_map(environment, values, ax=None, min_val=None, max_val=None, num_cols=
     action_cm = cm.get_cmap(action_cm, environment.n_actions)
     # Calculate colour corresponding to each value
     plotvals = np.floor((values - min_val) / (max_val - min_val) * num_cols) if max_val != min_val else np.ones(values.shape)
-    # Calculate radius of location circles based on how many nodes there are
-    radius = 2*(0.01 + 1/(10*np.sqrt(environment.n_locations))) if radius is None else radius
+    #print(plotvals)
+    #print('max: {0}, min: {1}'.format(np.max(plotvals), np.min(plotvals)))
     # Initialise empty axis
-    ax = initialise_axes(ax)
+    ax = initialise_axes(ax, environment.env_type)
     # Create empty list of location patches and action patches
     location_patches, action_patches = [], []
+    # Make multi_w_exploration states all same sized squares
+    if environment.env_type in ['multi_w_exploration']:
+        length = 0.125
+        height = 0.125
+    elif environment.env_type in ['loop_laps']:
+        length = 0.250
+        height = 0.250
+    # Assume loop_laps
+    else:
+        length = 0.250
+        height = 0.250
+        
+    #print('length: {0}\nheight: {1}'.format(length, height))
+    if radius is None:
+        # redundant for now
+        if environment.env_type == 'loop_laps':
+            #radius = 0.250
+            length = 0.250
+            height = 0.250
+        elif environment.env_type == 'multi_w_exploration':
+            length = 0.125
+            height = 0.125
+        else:
+            # Calculate radius of location circles based on how many nodes there are
+            radius = 2*(0.01 + 1/(10*np.sqrt(environment.n_locations)))
+
     # Now start drawing locations and actions
     for i, location in enumerate(environment.locations):
+        #print('environment.env_type')
         # Create patch for location
-        location_patches.append(plt.Rectangle((location['x']-radius/2, location['y']-radius/2), radius, radius, color=location_cm(int(plotvals[i]))) if shape == 'square'
-                                else plt.Circle((location['x'], location['y']), radius, color=location_cm(int(plotvals[i]))))            
+        if environment.env_type in ['loop_laps']:
+            #print('({0})'.format((location['x']-length, location['y']-height)))
+            #print('length: {0}\nheight: {1}'.format(length, height))
+            location_patches.append(plt.Rectangle(((location['x']-length), location['y']-height), length, height, linewidth=2, edgecolor='white', facecolor=location_cm(int(plotvals[i]))) if shape == 'square'
+                                else plt.Circle((location['x'], location['y']), radius, color=location_cm(int(plotvals[i]))))
+        
+        # Create patch for location
+        elif environment.env_type in ['multi_w_exploration', 'multi_w_alternation']:
+            
+            location_patches.append(plt.Rectangle(((location['x'])-length, location['y']-height), length, height, linewidth=2, edgecolor='white', facecolor=location_cm(int(plotvals[i]))) if shape == 'square'
+                                else plt.Circle((location['x'], location['y']), radius, color=location_cm(int(plotvals[i]))))
+        
         # And create action patches, if action plotting is switched on
         if do_plot_actions:
             for a, action in enumerate(location['actions']):
@@ -122,9 +160,16 @@ def plot_map(environment, values, ax=None, min_val=None, max_val=None, num_cols=
     # Add patches to axes
     for patch in location_patches + action_patches:
         ax.add_patch(patch)
+        #print('length: {0}, height: {1}'.format(patch.get_width(), patch.get_height()))
+
     # Return axes for further use
     return ax
-                
+
+def plot_all_trajectories(environment, values, ax=None, min_val=None, max_val=None, num_cols=100, location_cm='viridis', action_cm='Pastel1', do_plot_actions=False, shape='square', radius=None):
+    
+    return
+    
+    
 def plot_actions(environment, field='probability', ax=None, min_val=None, max_val=None, num_cols=100, action_cm='viridis'):
     # If min_val and max_val are not specified: take the minimum and maximum of the supplied values
     min_val = min([action[field] for location in environment.locations for action in location['actions']]) if min_val is None else min_val
@@ -134,7 +179,7 @@ def plot_actions(environment, field='probability', ax=None, min_val=None, max_va
     # Calculate radius of location circles based on how many nodes there are
     radius = 2*(0.01 + 1/(10*np.sqrt(environment.n_locations)))
     # Initialise empty axis
-    ax = initialise_axes(ax)
+    ax = initialise_axes(ax, environment.env_type)
     # Create empty list of location patches and action patches
     location_patches, action_patches = [], []
     # Now start drawing locations and actions
@@ -153,6 +198,8 @@ def plot_actions(environment, field='probability', ax=None, min_val=None, max_va
                 for loc_to in locations_to:
                     action_patches.append(action_patch(location, loc_to, radius, action_colour))
     # Add patches to axes
+    #ax.set_xlim(0, 1.375)
+    #ax.set_ylim(0, 0.625)
     for patch in (location_patches + action_patches):
         ax.add_patch(patch)
     # Return axes for further use
@@ -163,7 +210,7 @@ def plot_walk(environment, walk, max_steps=None, n_steps=1, ax=None):
     max_steps = len(walk) if max_steps is None else min(max_steps, len(walk))
     # Initialise empty axis if axis wasn't provided
     if ax is None:
-        ax = initialise_axes(ax)
+        ax = initialise_axes(ax, environment.env_type)
     # Find all circle patches on current axis
     location_patches = [patch_i for patch_i, patch in enumerate(ax.patches) if type(patch) is plt.Circle or type(patch) is plt.Rectangle]
     # Get radius of location circles on this map
@@ -184,18 +231,18 @@ def plot_walk(environment, walk, max_steps=None, n_steps=1, ax=None):
     # Return axes that this was plotted on
     return ax
 
-def plot_cells(p, g, environment, n_f_ovc=0, columns=10):
+def plot_cells(p, g, environment, n_f_ovc=0, columns=10, save_dir=None, index='0', seed=0):
     # Run through all hippocampal and entorhinal rate maps, big nested arrayxs arranged as [frequency][location][cell]
-    print('len(p): {0}'.format(len(p)))
+    #print('len(p): {0}'.format(len(p)))
     for cells, names in zip([p, g],['Hippocampal','Entorhinal']):
         # Calculate the number of rows that each frequency module requires
-        print('how many cells: len(cells[0][0]): {0}'.format(len(cells[0][0])))
+        #print('how many cells: len(cells[0][0]): {0}'.format(len(cells[0][0])))
         n_rows_f = np.cumsum([0] + [np.ceil(len(c[0]) * 1.0 / columns) for c in cells]).astype(int)
         # Create subplots for cells across frequencies
         if names == 'Hippocampal':
-            fig, ax = plt.subplots(nrows=n_rows_f[-1], ncols=columns, figsize=(15, 18))
+            fig, ax = plt.subplots(nrows=n_rows_f[-1], ncols=columns, figsize=(120, 150))
         else:
-            fig, ax = plt.subplots(nrows=n_rows_f[-1], ncols=columns, figsize=(15, 7))
+            fig, ax = plt.subplots(nrows=n_rows_f[-1], ncols=columns, figsize=(120, 60))
         # Switch all axes off
         for row in ax:
             for col in row:
@@ -203,26 +250,47 @@ def plot_cells(p, g, environment, n_f_ovc=0, columns=10):
         # And run through all frequencies to plot cells for that frequency
         for f, loc_rates in enumerate(cells):
             # Set title for current axis
-            ax[n_rows_f[f], int(columns/2)].set_title(names + ('' if f < len(cells) - n_f_ovc else ' object vector ') + ' cells, frequency ' 
-                                         + str(f if f < len(cells) - n_f_ovc else f - (len(cells) - n_f_ovc)))
+            ax[n_rows_f[f], int(columns/2)].set_title('{0} '.format(environment.env_type) + names + ('' if f < len(cells) - n_f_ovc else ' object vector ') + ' cells, frequency ' 
+                                         + str(f if f < len(cells) - n_f_ovc else f - (len(cells) - n_f_ovc)), fontdict={'fontsize':100})
             # Plot map for each cell
+            # row, col are the coordinates in the axes object for this particular cell c
             for c in range(len(loc_rates[0])):
                 # Get current row and column
                 row = int(n_rows_f[f] + np.floor(c / columns))
                 col = int(c % columns)
+
+                # Send in correct radius size
+                radius = 0.250 if environment.env_type in ['loop_laps', 'multi_w_exploration', 'multi_w_alternation'] else 1/np.sqrt(len(loc_rates))
                 # Plot rate map for this cell by collection firing rate at each location
-                plot_map(environment, np.array([loc_rates[l][c] for l in range(len(loc_rates))]), ax[row, col], shape='square', radius=1/np.sqrt(len(loc_rates)))
+                plot_map(environment, np.array([loc_rates[l][c] for l in range(len(loc_rates))]), ax[row, col], shape='square', radius=radius)
+        
+        fig.tight_layout()
+        
+        if save_dir:
+            plt.savefig(save_dir + 'index_{0}_seed_{1}_{2}_cells.svg'.format(index, seed, names))
+            plt.savefig(save_dir + 'index_{0}_seed_{1}_{2}_cells.png'.format(index, seed, names)) 
     
-def initialise_axes(ax=None):
+def initialise_axes(ax=None, env_type='multi_w_exploration'):
     # If no axes specified: create new figure with new empty axes
     if ax is None:
         plt.figure()
         ax = plt.axes()    
     # Set axes limits to 0, 1 as this is how the positions in the environment are setup
-    ax.set_xlim([0, 1])
-    ax.set_ylim([0, 1])
-    # Force axes to be square to keep proper aspect ratio
-    ax.set_aspect(1)
+    if env_type in ['multi_w_exploration']:
+        ax.set_xlim([0, 1.375])
+        ax.set_ylim([0, 0.500])
+        # Force axes to be square to keep proper aspect ratio
+        ax.set_aspect(1)
+    elif env_type in ['loop_laps']:
+        ax.set_xlim([-0.125, 1.875])
+        ax.set_ylim([-0.125, 0.875])
+        # Force axes to be square to keep proper aspect ratio
+        ax.set_aspect(1)
+    else:
+        ax.set_xlim([0, 1.375])
+        ax.set_ylim([0, 0.500])
+        # Force axes to be square to keep proper aspect ratio
+        ax.set_aspect(1)
     # Revert y-axes so y position increases downwards (as it usually does in graphics/pixels)
     ax.invert_yaxis()
     # And don't show any axes

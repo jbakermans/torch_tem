@@ -11,41 +11,53 @@ import torch
 from scipy.special import comb
 
 # This contains one single function that generates a dictionary of parameters, which is provided to the model on initialisation
-def parameters():
+def parameters(custom_params={}):
     params = {}
+    # -- Environment parameters
+    # Which environments should we train on during this run? Default to a single 10x10 square gridworld
+    params['envs'] = custom_params['envs'] if 'envs' in custom_params.keys() else ['./envs/10x10.json']
     # -- World parameters
     # Does this world include the standing still action?
     params['has_static_action'] = True
     # Number of available actions, excluding the stand still action (since standing still has an action vector full of zeros, it won't add to the action vector dimension)
-    params['n_actions'] = 4
+    params['n_actions'] = custom_params['n_actions'] if 'n_actions' in custom_params.keys() else 4
     # Bias for explorative behaviour to pick the same action again, to encourage straight walks
-    params['explore_bias'] = 2
+    params['explore_bias'] = custom_params['explore_bias'] if 'explore_bias' in custom_params.keys() else 2
     # Rate at which environments with shiny objects occur between training environments. Set to 0 for no shiny environments at all
-    params['shiny_rate'] = 0
+    params['shiny_rate'] = custom_params['shiny_rate'] if 'shiny_rate' in custom_params.keys() else 0
     # Discount factor in calculating Q-values to generate shiny object oriented behaviour
-    params['shiny_gamma'] = 0.7
+    params['shiny_gamma'] = custom_params['shiny_gamma'] if 'shiny_gamma' in custom_params.keys() else 0.7
     # Inverse temperature for shiny object behaviour to pick actions based on Q-values
-    params['shiny_beta'] = 1.5
+    params['shiny_beta'] = custom_params['shiny_beta'] if 'shiny_beta' in custom_params.keys() else 1.5
     # Number of shiny objects in the arena
-    params['shiny_n'] = 2
+    params['shiny_n'] = custom_params['shiny_n'] if 'shiny_n' in custom_params.keys() else 2
     # Number of times to return to a shiny object after finding it
-    params['shiny_returns'] = 15
+    params['shiny_returns'] = custom_params['shiny_returns'] if 'shiny_returns' in custom_params.keys() else 15
     # Group all shiny parameters together to pass them to the world object
     params['shiny'] = {'gamma' : params['shiny_gamma'], 'beta' : params['shiny_beta'], 'n' : params['shiny_n'], 'returns' : params['shiny_returns']}
-      
+    # Is the behavior being specified by experimenter or not? if so, what type of behavior?
+    params['specify_behavior'] = custom_params['specify_behavior'] if 'specify_behavior' in custom_params.keys() else False
+    params['behavior_type'] = custom_params['behavior_type'] if 'behavior_type' in custom_params.keys() else None
+    params['behavior_seed'] = custom_params['behavior_seed'] if 'behavior_seed' in custom_params.keys() else 0
+    
     # -- Training parameters
     # Number of walks to generate
-    params['train_it'] = 20000
+    params['train_it'] = custom_params['train_it'] if 'train_it' in custom_params.keys() else 20000
     # Number of steps to roll out before backpropagation through time
-    params['n_rollout'] = 20
+    params['n_rollout'] = custom_params['n_rollout'] if 'n_rollout' in custom_params.keys() else 20
     # Batch size: number of walks for training simultaneously
-    params['batch_size'] = 16
+    params['batch_size'] = custom_params['batch_size'] if 'batch_size' in custom_params.keys() else 16
     # Minimum length of a walk on one environment. Walk lengths are sampled uniformly from a window that shifts down until its lower limit is walk_it_min at the end of training
-    params['walk_it_min'] = 25
+    params['walk_it_min'] = custom_params['walk_it_min'] if 'walk_it_min' in custom_params.keys() else 25
     # Maximum length of a walk on one environment. Walk lengths are sampled uniformly from a window that starts with its upper limit at walk_it_max in the beginning of training, then shifts down
-    params['walk_it_max'] = 300
+    params['walk_it_max'] = custom_params['walk_it_max'] if 'walk_it_max' in custom_params.keys() else 300
     # Width of window from which walk lengths are sampled: at any moment, new walk lengths are sampled window_center +/- 0.5 * walk_it_window where window_center shifts down
     params['walk_it_window'] = 0.2 * (params['walk_it_max'] - params['walk_it_min'])
+    # Whether or not to randomize observations in new environments. Mostly for debugging
+    # Default to True
+    params['randomise_observations'] = custom_params['randomise_observations'] if 'randomise_observations' in custom_params.keys() else True
+    # Whether or not to weight reward losses
+    params['weight_reward_loss'] = custom_params['weight_reward_loss'] if 'weight_reward_loss' in custom_params.keys() else False
     # Weights of prediction losses
     params['loss_weights_x'] = 1
     # Weights of grounded location losses
@@ -53,7 +65,7 @@ def parameters():
     # Weights of abstract location losses
     params['loss_weights_g'] = 1
     # Weights of regularisation losses
-    params['loss_weights_reg_g'] = 0.01 
+    params['loss_weights_reg_g'] = 0.01
     params['loss_weights_reg_p'] = 0.02
     # Weights of losses: re-balance contributions of L_p_g, L_p_x, L_x_gen, L_x_g, L_x_p, L_g, L_reg_g, L_reg_p
     params['loss_weights'] = torch.tensor([params['loss_weights_p'], params['loss_weights_p'], params['loss_weights_x'], params['loss_weights_x'], params['loss_weights_x'], params['loss_weights_g'], params['loss_weights_reg_g'], params['loss_weights_reg_p']], dtype=torch.float)
@@ -79,7 +91,7 @@ def parameters():
     # Minimum learning rate 
     params['lr_min'] = 8e-5
     # Rate of learning rate decay
-    params['lr_decay_rate'] = 0.5
+    params['lr_decay_rate'] = custom_params['lr_decay_rate'] if 'lr_decay_rate' in custom_params.keys() else 0.5
     # Steps of learning rate decay
     params['lr_decay_steps'] = 4000
     
@@ -99,7 +111,10 @@ def parameters():
     
     # ---- Neuron and module parameters
     # Neurons for subsampled entorhinal abstract location f_g(g) for each frequency module
-    params['n_g_subsampled'] = [10, 10, 8, 6, 6] 
+    if 'n_g_subsampled' in custom_params.keys():
+        params['n_g_subsampled'] = custom_params['n_g_subsampled']
+    else:
+        params['n_g_subsampled'] = [10, 10, 8, 6, 6]
     # Neurons for object vector cells. Neurons will get new modules if object vector cell modules are separated; otherwise, they are added to existing abstract location modules.
     # a) No additional modules, no additional object vector neurons (e.g. when not using shiny environments): [0 for _ in range(len(params['n_g_subsampled']))], and separate_ovc set to False
     # b) No additional modules, but n additional object vector neurons in each grid module: [n for _ in range(len(params['n_g_subsampled']))], and separate_ovc set to False
@@ -114,9 +129,9 @@ def parameters():
     # Total number of modules
     params['n_f'] = len(params['n_g_subsampled'])
     # Number of neurons of entorhinal abstract location g for each frequency
-    params['n_g'] = [3 * g for g in params['n_g_subsampled']]
+    params['n_g'] = custom_params['n_g'] if 'n_g' in custom_params.keys() else [3 * g for g in params['n_g_subsampled']]
     # Neurons for sensory observation x
-    params['n_x'] = 45    
+    params['n_x'] = custom_params['n_x'] if 'n_x' in custom_params.keys() else 45    
     # Neurons for compressed sensory experience x_c
     params['n_x_c'] = 10
     # Neurons for temporally filtered sensory experience x for each frequency
@@ -204,6 +219,12 @@ def parameters():
     params['two_hot_table'] = [torch.tensor(code) for code in params['two_hot_table']]
     # Downsampling matrix to go from grid cells to compressed grid cells for indexing memories by simply taking only the first n_g_subsampled grid cells
     params['g_downsample'] = [torch.cat([torch.eye(dim_out, dtype=torch.float),torch.zeros((dim_in-dim_out,dim_out), dtype=torch.float)]) for dim_in, dim_out in zip(params['n_g'],params['n_g_subsampled'])]
+    
+    # Go through the custom_params dict and only overwrite those that were input
+    if custom_params:
+        for param_key in custom_params.keys():
+            params[param_key] = custom_params[param_key]
+        
     return params
 
 # This specifies how parameters are updated at every backpropagation iteration/gradient update
